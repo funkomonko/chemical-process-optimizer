@@ -1,3 +1,12 @@
+# Environment / secrets
 .env
-.venv/
+ 
+# Python
 __pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+ 
+# Generated at runtime by swarm.py — not source, safe to ignore
+temp_sim.py

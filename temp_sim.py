@@ -21,66 +21,64 @@ clr.AddReference("DWSIM.GlobalSettings")
 clr.AddReference("DWSIM.SharedClasses")
 clr.AddReference("DWSIM.Thermodynamics")
 clr.AddReference("ThermoCS")
-clr.AddReference("DWSIM.UnitOperations")
+clr.AddReference("DWSIM.UnitOperations")   # <-- required for Heater
 
 from DWSIM.Automation import Automation3
-from DWSIM.Interfaces.Enums.GraphicObjects import ObjectType
-from DWSIM.UnitOperations import UnitOperations
-from System import Array
-
-# ----------------------------------------------------------------------
-# Create automation interface and a new flowsheet
-# ----------------------------------------------------------------------
 interf = Automation3()
 flowsheet = interf.CreateFlowsheet()
 
 # ----------------------------------------------------------------------
-# Add compounds and property package (Peng‑Robinson)
+# 1. Add compounds and property package
 # ----------------------------------------------------------------------
 flowsheet.AddCompound("Water")
 flowsheet.AddCompound("Ethanol")
 pp = flowsheet.CreateAndAddPropertyPackage("Peng-Robinson (PR)")
 
 # ----------------------------------------------------------------------
-# 1) Feed stream (50/50 molar Water‑Ethanol)
+# 2. Imports needed for stream handling
+# ----------------------------------------------------------------------
+from DWSIM.Interfaces.Enums.GraphicObjects import ObjectType
+from System import Array
+from DWSIM.UnitOperations import UnitOperations
+
+# ----------------------------------------------------------------------
+# 3. Create Feed Stream
 # ----------------------------------------------------------------------
 feed_obj = flowsheet.AddObject(ObjectType.MaterialStream, 50, 50, "Feed Stream")
 feed_stream = feed_obj.GetAsObject()
 feed_stream.SetTemperature(298.15)          # K
 feed_stream.SetPressure(101325.0)           # Pa
 feed_stream.SetMassFlow(10.0)               # kg/s
-feed_stream.SetOverallMolarComposition(Array[float]([0.5, 0.5]))
+feed_stream.SetOverallMolarComposition(Array[float]([0.5, 0.5]))  # 50/50 molar Water‑Ethanol
 feed_stream.SetPropertyPackage(pp)
 
 # ----------------------------------------------------------------------
-# 2) Heater (outlet temperature 358.15 K)
+# 4. Heater Block
 # ----------------------------------------------------------------------
 heater_obj = flowsheet.AddObject(ObjectType.Heater, 150, 50, "Heater Block")
 heater = heater_obj.GetAsObject()
 heater.CalcMode = UnitOperations.Heater.CalculationMode.OutletTemperature
-heater.OutletTemperature = 358.15
+heater.OutletTemperature = 358.15          # K
 
-# ----------------------------------------------------------------------
-# 3) Energy stream for the heater (optional but shown)
-# ----------------------------------------------------------------------
+# Energy stream (required by DWSIM UI, not used in calculations here)
 energy_obj = flowsheet.AddObject(ObjectType.EnergyStream, 150, 100, "Heat Duty")
 energy_stream = energy_obj.GetAsObject()
 
 # ----------------------------------------------------------------------
-# 4) Intermediate material stream (heater → flash)
+# 5. Intermediate stream (Heater → Flash)
 # ----------------------------------------------------------------------
-inter_obj = flowsheet.AddObject(ObjectType.MaterialStream, 250, 50, "Heater‑to‑Flash")
+inter_obj = flowsheet.AddObject(ObjectType.MaterialStream, 250, 50, "Heater to Flash")
 inter_stream = inter_obj.GetAsObject()
 inter_stream.SetPropertyPackage(pp)
 
 # ----------------------------------------------------------------------
-# 5) Flash drum
+# 6. Flash Drum
 # ----------------------------------------------------------------------
 flash_obj = flowsheet.AddObject(ObjectType.Vessel, 350, 50, "Flash Drum")
-flash = flash_obj.GetAsObject()   # no property package needed
+flash = flash_obj.GetAsObject()   # not used directly, but kept for completeness
 
 # ----------------------------------------------------------------------
-# 6) Vapor and liquid product streams
+# 7. Product streams
 # ----------------------------------------------------------------------
 vapor_obj = flowsheet.AddObject(ObjectType.MaterialStream, 450, 30, "Vapor Product")
 vapor_stream = vapor_obj.GetAsObject()
@@ -91,37 +89,36 @@ liquid_stream = liquid_obj.GetAsObject()
 liquid_stream.SetPropertyPackage(pp)
 
 # ----------------------------------------------------------------------
-# 7) Connect the topology (always via intermediate streams)
+# 8. Connect objects (using -1, -1 for auto‑port resolution)
 # ----------------------------------------------------------------------
 flowsheet.ConnectObjects(feed_obj.GraphicObject, heater_obj.GraphicObject, -1, -1)
 flowsheet.ConnectObjects(heater_obj.GraphicObject, inter_obj.GraphicObject, -1, -1)
 flowsheet.ConnectObjects(inter_obj.GraphicObject, flash_obj.GraphicObject, -1, -1)
 flowsheet.ConnectObjects(flash_obj.GraphicObject, vapor_obj.GraphicObject, -1, -1)
 flowsheet.ConnectObjects(flash_obj.GraphicObject, liquid_obj.GraphicObject, -1, -1)
-# Connect the energy stream to the heater (optional)
-flowsheet.ConnectObjects(energy_obj.GraphicObject, heater_obj.GraphicObject, -1, -1)
 
 # ----------------------------------------------------------------------
-# 8) Run the simulation
+# 9. Run the simulation
 # ----------------------------------------------------------------------
-feed_stream.Calculate()
-inter_stream.Calculate()
-vapor_stream.Calculate()
-liquid_stream.Calculate()
 interf.CalculateFlowsheet2(flowsheet)
 
 # ----------------------------------------------------------------------
-# 9) Extract and print results
+# 10. Extract and print results
 # ----------------------------------------------------------------------
+# Vapor product
 v_mass = vapor_stream.GetMassFlow()
-v_comp = vapor_stream.OverallMolarComposition   # .NET array
-v_comp_list = [float(x) for x in v_comp]
+v_comp = vapor_stream.GetOverallMolarComposition()
+v_comp_list = [float(x) for x in v_comp]   # convert .NET array to Python list
 
+# Liquid product
 l_mass = liquid_stream.GetMassFlow()
-l_comp = liquid_stream.OverallMolarComposition
+l_comp = liquid_stream.GetOverallMolarComposition()
 l_comp_list = [float(x) for x in l_comp]
 
-print("Vapor product mass flow (kg/s):", v_mass)
-print("Vapor product molar composition (Water, Ethanol):", v_comp_list)
-print("Liquid product mass flow (kg/s):", l_mass)
-print("Liquid product molar composition (Water, Ethanol):", l_comp_list)
+print("=== Vapor Product ===")
+print(f"Mass Flow (kg/s): {v_mass:.4f}")
+print(f"Molar Composition (Water, Ethanol): [{v_comp_list[0]:.4f}, {v_comp_list[1]:.4f}]")
+print()
+print("=== Liquid Product ===")
+print(f"Mass Flow (kg/s): {l_mass:.4f}")
+print(f"Molar Composition (Water, Ethanol): [{l_comp_list[0]:.4f}, {l_comp_list[1]:.4f}]")

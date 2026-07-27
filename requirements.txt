@@ -1,0 +1,11 @@
+# Agent orchestration
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-groq>=0.2.0
+
+# Config
+python-dotenv>=1.0.0
+
+# .NET interop — required to run the DWSIM automation API (used by the
+# generated flowsheet scripts, not imported directly in swarm.py)
+pythonnet>=3.0.0
